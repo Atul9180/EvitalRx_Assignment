@@ -2,8 +2,11 @@ import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import connectToDb from "./db.js";
+import authRoutes from "./routes/auth.route.js";
+import path from "path";
 
 // environment variable configuration
 dotenv.config();
@@ -15,13 +18,6 @@ const client_url = process.env.CLIENT_URL;
 // create express server instance
 const app = express();
 
-// cors allowed options
-const corsOptions = {
-  origin: client_url,
-  methods: "GET,POST,PUT,DELETE",
-  allowedHeaders: "Content-Type,Authorization",
-};
-
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, //creating window of 15min
   max: 100, //limit req per IP 100 req/window
@@ -29,9 +25,10 @@ const limiter = rateLimit({
 
 //Middlewares
 app.use(helmet());
-app.use(cors(corsOptions));
+app.use(cors({ origin: client_url, credentials: true }));
+app.use(cookieParser()); //allow parsing of incoming cookie
 app.use(limiter);
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json()); //allows to parse incoming requests: req.body
 app.use(express.urlencoded({ extended: true }));
 
 //global error handler
@@ -46,12 +43,22 @@ app.use((err, req, res, next) => {
 });
 
 //Routes
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message:
-      "Hello Server boilerPlate code with connection to mongo db and header security, api hitting rate limit!",
+// app.get("/", (req, res) => {
+//   res.status(200).json({
+//     message:
+//       "Hello Server boilerPlate code with connection to mongo db and header security, api hitting rate limit!",
+//   });
+// });
+
+app.use("/api/auth", authRoutes);
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "/client/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "client", "dist", "index.html"));
   });
-});
+}
 
 //start Server and connect to server
 const startServer = async () => {
